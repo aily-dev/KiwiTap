@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Kiwi Tap</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { sans: ['Inter', '-apple-system', 'Segoe UI', 'sans-serif'] },
+  colors: { bg: '#051210', panel: '#0d1f18', line: '#1d3a2b', lime: '#e3ffb0', leaf: '#b9ec62',
+            muted: '#8aa89a', amber: '#f4b942' }
+}}}
+</script>
+<style>
+  :root { --hi: rgba(255,255,255,.34); --edge: rgba(255,255,255,.12); --lime: #b9ec62; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; background: #051210;
+    -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  body { background: radial-gradient(120% 60% at 50% 55%, #0c2a1c 0%, #051210 72%); }
+  #app { height: 100vh; height: 100dvh; height: var(--tg-viewport-height, 100dvh); }
+  #bottom-nav { flex-shrink: 0; position: relative; z-index: 20; }
+
+  /* ===== background light (what the glass refracts) ===== */
+  .orbs { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+  .orbs i { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55; animation: drift 16s ease-in-out infinite alternate; transition: background 1s; }
+  .orbs i:nth-child(1) { width: 280px; height: 280px; background: #2fa14a; left: -90px; top: 8%; }
+  .orbs i:nth-child(2) { width: 240px; height: 240px; background: #9ad12e; right: -100px; top: 50%; animation-delay: -5s; }
+  .orbs i:nth-child(3) { width: 220px; height: 220px; background: #1c8a7a; left: 20%; bottom: -90px; animation-delay: -9s; }
+  @keyframes drift { to { transform: translate(40px, -60px) scale(1.2); } }
+
+  /* ===== liquid glass ===== */
+  .glass, .pill, .chip, .tile, .power, #toast {
+    position: relative; isolation: isolate;
+    background: linear-gradient(150deg, rgba(255,255,255,.15) 0%, rgba(255,255,255,.04) 45%, rgba(255,255,255,.08) 100%);
+    border: 1px solid var(--edge);
+    box-shadow: inset 0 1px 0 var(--hi), inset 0 -1px 0 rgba(255,255,255,.06), inset 0 0 22px rgba(255,255,255,.05), 0 10px 28px rgba(0,0,0,.28);
+    backdrop-filter: blur(22px) saturate(185%); -webkit-backdrop-filter: blur(22px) saturate(185%);
+  }
+  .glass::before, .pill::before, .tile::before, .power::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; pointer-events: none;
+    background: radial-gradient(120% 70% at 18% 0%, rgba(255,255,255,.2), transparent 55%);
+  }
+  .pill { box-shadow: inset 0 1px 0 var(--hi), 0 0 0 1px rgba(185,236,98,.18), 0 0 28px rgba(185,236,98,.14), 0 8px 22px rgba(0,0,0,.25); }
+  .tile { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 16px; flex: none; color: var(--lime);
+    background: linear-gradient(145deg, rgba(185,236,98,.3), rgba(185,236,98,.06)); box-shadow: inset 0 1px 0 var(--hi), inset 0 0 0 1px rgba(185,236,98,.22); }
+  .chip { border-radius: 999px; padding: 3px 12px; font-weight: 700; font-size: 14px; color: #e3ffb0; backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 var(--hi); }
+  .power { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; border-radius: 20px; padding: 10px 6px; font-weight: 700; font-size: 14px; color: #eaffc0; transition: transform .12s, filter .12s; }
+  .power:active { transform: scale(.96); filter: brightness(1.2); } .power:disabled { opacity: .4; }
+  button.glass:active { transform: scale(.985); } button.glass { transition: transform .12s; }
+  button.bg-leaf { background: linear-gradient(180deg, #d4ff85, #a6dd4a); color: #0a1a0d; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 6px 18px rgba(185,236,98,.25); }
+  button.bg-leaf:disabled { background: rgba(255,255,255,.06); color: var(--muted, #8aa89a); box-shadow: inset 0 1px 0 var(--hi); }
+  .me-row { background: linear-gradient(150deg, rgba(185,236,98,.34), rgba(185,236,98,.1)); border: 1px solid rgba(185,236,98,.4); color: #f2ffd4; box-shadow: inset 0 1px 0 var(--hi), 0 8px 24px rgba(0,0,0,.25); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+  .track { background: rgba(255,255,255,.07); box-shadow: inset 0 1px 3px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(8px); }
+  .fill-leaf { background: linear-gradient(90deg, #7cc83a, #c6f56e); box-shadow: 0 0 14px rgba(185,236,98,.55), inset 0 1px 0 rgba(255,255,255,.5); }
+  #promoInput { background: rgba(0,0,0,.28); border: 1px solid var(--edge); box-shadow: inset 0 2px 6px rgba(0,0,0,.35); backdrop-filter: blur(8px); }
+  #toast { background: rgba(227,255,176,.88); color: #0a1a0d; border: 1px solid rgba(255,255,255,.6); }
+
+  /* ===== coin ===== */
+  #coinWrap { position: relative; width: min(70vw, 32vh, 320px); width: min(100cqmin, 320px); aspect-ratio: 1; flex: none; animation: breathe 4s ease-in-out infinite; }
+  #coinWrap::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: -16px; height: 20px; background: radial-gradient(closest-side, rgba(0,0,0,.55), transparent); filter: blur(4px); pointer-events: none; }
+  #coin { width: 100%; height: 100%; position: relative; touch-action: manipulation; transition: transform .08s ease-out; border-radius: 50%;
+    filter: drop-shadow(0 0 46px rgba(130,220,50,.3)); }
+  #coin::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 30% 22%, rgba(255,255,255,.34), transparent 42%); }
+  #ring { position: absolute; inset: -16px; border-radius: 50%; border: 1px solid rgba(255,255,255,.14); box-shadow: inset 0 0 30px rgba(185,236,98,.08), 0 0 30px rgba(185,236,98,.06); pointer-events: none; }
+  @keyframes breathe { 50% { transform: scale(1.025); } }
+  .ripple { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(227,255,176,.6); animation: rip .6s ease-out forwards; pointer-events: none; }
+  @keyframes rip { to { transform: scale(1.3); opacity: 0; } }
+  .spark { position: fixed; width: 7px; height: 7px; border-radius: 50%; background: #e3ffb0; pointer-events: none; box-shadow: 0 0 8px #b9ec62; animation: spark .6s ease-out forwards; }
+  @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+  #coins { display: inline-block; } .bump { animation: bump .12s; } @keyframes bump { 50% { transform: scale(1.05); } }
+  .bal { background: linear-gradient(180deg, #ffffff 15%, #d4f79a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -.03em; }
+  .float { position: fixed; pointer-events: none; font-weight: 800; font-size: 30px; color: #eaffc0; text-shadow: 0 2px 10px rgba(0,0,0,.6); animation: rise .9s ease-out forwards; }
+  @keyframes rise { to { transform: translateY(-110px); opacity: 0; } }
+
+  /* ===== nav dock ===== */
+  #bottom-nav { border-radius: 30px; box-shadow: inset 0 1px 0 var(--hi), inset 0 0 24px rgba(255,255,255,.05), 0 14px 36px rgba(0,0,0,.4); }
+  #bottom-nav button { transition: color .2s, background .25s; }
+  .nav-on { background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.06)) !important; color: #f0ffc8 !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 0 0 1px rgba(185,236,98,.22), 0 0 18px rgba(185,236,98,.14); }
+
+  /* ===== frenzy ===== */
+  body.frenzy #coin { filter: sepia(1) saturate(3.2) hue-rotate(-12deg) drop-shadow(0 0 60px rgba(255,160,30,.75)); }
+  body.frenzy .orbs i { background: #e08a1a; }
+  body.frenzy #ring { border-color: rgba(255,190,70,.55); }
+  body.frenzy #pw-frenzy { background: linear-gradient(150deg, rgba(255,160,40,.5), rgba(255,210,80,.18)); }
+
+  #coinBox { container-type: size; padding: 30px 0 38px; }
+  #coin svg { display: block; }
+  #tab-tap { overflow: hidden; }
+  @keyframes glow { 50% { box-shadow: inset 0 1px 0 var(--hi), 0 0 28px rgba(185,236,98,.4); } }
+  .hint { animation: glow 2.4s ease-in-out infinite; }
+  @media (max-height: 740px) {
+    #coinBox { padding: 18px 0 26px !important; }
+    header { padding-top: 8px !important; }
+    header .bal { font-size: 46px !important; }
+    #kiwiSmall { width: 40px !important; height: 40px !important; }
+    #rank { margin-top: 4px !important; font-size: 14px !important; }
+    header > div.h-3 { margin-top: 8px !important; height: 8px !important; }
+    #toNext { margin-top: 4px !important; font-size: 13px !important; }
+    #hint { margin-top: 8px !important; padding: 8px 12px !important; font-size: 14px !important; }
+    #tab-tap > div.mt-4 { margin-top: 8px !important; }
+    #tab-tap > div.mt-3 { margin-top: 6px !important; height: 12px !important; }
+    nav button { padding-top: 6px !important; padding-bottom: 6px !important; font-size: 13px !important; }
+    nav svg { width: 24px; height: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .float, .hint, .orbs i, #coinWrap { animation: none; } #coin { transition: none; } }
+  @supports not (backdrop-filter: blur(1px)) { .glass, .pill, .chip, .tile, .power { background: rgba(20,45,34,.85); } }
+  button:focus-visible { outline: 2px solid #b9ec62; outline-offset: 2px; }
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body class="font-sans text-lime">
+<div class="orbs"><i></i><i></i><i></i></div>
+<div id="app" class="relative z-10 h-full flex flex-col max-w-md mx-auto" style="padding-top: env(safe-area-inset-top)">
+
+  <header class="px-7 pt-4 text-center">
+    <div class="inline-flex items-center gap-2.5 pill rounded-full px-6 py-2.5 font-semibold text-lg">
+      <span id="leagueIcon" class="inline-flex"></span><span id="league">Sprout</span>
+    </div>
+    <div class="mt-4 flex items-center justify-center gap-3">
+      <span id="kiwiSmall" class="w-[52px] h-[52px] shrink-0"></span>
+      <span id="coins" class="bal text-[64px] leading-none font-extrabold tabular-nums">0</span>
+    </div>
+    <div id="rank" class="mt-2 text-[17px] text-muted">All-time #– / –</div>
+    <div class="track mt-4 h-3 rounded-full overflow-hidden"><div id="leagueBar" class="fill-leaf h-full rounded-full transition-[width] duration-300" style="width:0"></div></div>
+    <div id="toNext" class="mt-2 text-[15px] text-muted"></div>
+  </header>
+
+  <main class="flex-1 min-h-0 relative">
+    <section id="tab-tap" class="absolute inset-0 flex flex-col px-5">
+      <button id="hint" class="hint glass hidden mt-4 w-full rounded-2xl px-4 py-3.5 text-[17px] font-semibold text-lime">
+        <span data-ic="pointer" data-size="22" class="inline-flex align-middle mr-1.5"></span>Buy your first upgrade — more points per tap!
+      </button>
+      <div class="mt-4 flex items-center gap-3 px-1">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="#f4b942"><path d="M13.5 2 5 13.5h5.5L9.5 22 19 9.5h-5.8z"/></svg>
+        <span id="energyTxt" class="text-xl font-bold text-amber tabular-nums"></span>
+        <span id="pphChip" class="chip ml-auto">+0/hr</span>
+      </div>
+      <div class="track mt-3 h-4 rounded-full overflow-hidden">
+        <div id="energyBar" class="h-full rounded-full transition-[width] duration-200" style="background: linear-gradient(90deg,#eda83f,#f8cf5f); box-shadow: 0 0 14px rgba(244,185,66,.5), inset 0 1px 0 rgba(255,255,255,.5)"></div>
+      </div>
+      <div class="mt-2.5 flex gap-2.5">
+        <button id="pw-refill" data-power="refill" class="power"></button>
+        <button id="pw-frenzy" data-power="frenzy" class="power"></button>
+      </div>
+      <div id="coinBox" class="flex-1 min-h-[140px] flex items-center justify-center">
+        <div id="coinWrap"><div id="ring"></div><div id="coin" class="cursor-pointer"></div></div>
+      </div>
+    </section>
+
+    <section id="tab-upgrade" class="absolute inset-0 overflow-y-auto px-5 pt-4 pb-4 hidden">
+      <h2 class="font-bold text-xl mb-3">Boosters</h2>
+      <div id="boosts" class="grid gap-2.5 mb-6"></div>
+      <h2 class="font-bold text-xl mb-1">Passive income</h2>
+      <p class="text-sm text-muted mb-3">Cards earn points every hour, even while you're away (up to 3 hours).</p>
+      <div id="cards" class="grid grid-cols-2 gap-2.5"></div>
+    </section>
+
+    <section id="tab-tasks" class="absolute inset-0 overflow-y-auto px-5 pt-4 pb-4 hidden">
+      <button id="dailyBtn" class="w-full rounded-2xl bg-leaf font-bold text-lg py-4 mb-6" style="display:flex;align-items:center;justify-content:center;gap:8px"></button>
+      <h2 class="font-bold text-xl mb-3">Tasks</h2>
+      <div id="tasks" class="grid gap-2.5"></div>
+      <h2 class="font-bold text-xl mt-6 mb-3">Promo code</h2>
+      <div class="glass rounded-3xl p-3 flex gap-2">
+        <input id="promoInput" placeholder="Enter code" class="flex-1 min-w-0 rounded-2xl px-4 py-2.5 uppercase text-lime outline-none focus:border-leaf">
+        <button id="promoBtn" class="rounded-2xl bg-leaf font-bold px-5">Redeem</button>
+      </div>
+    </section>
+
+    <section id="tab-friends" class="absolute inset-0 overflow-y-auto px-5 pt-4 pb-4 hidden">
+      <div class="glass rounded-[28px] p-5 text-center">
+        <div class="mb-2 flex justify-center text-leaf" data-ic="users" data-size="52"></div>
+        <h2 class="font-bold text-xl">Invite friends</h2>
+        <p class="text-muted mt-1">You and every friend get <b id="refBonus" class="text-leaf"></b> points when they join.</p>
+        <div class="mt-4 text-3xl font-extrabold tabular-nums" id="refCount">0</div>
+        <div class="text-sm text-muted">friends invited</div>
+        <div class="flex gap-2 mt-5">
+          <button id="shareBtn" class="flex-1 rounded-2xl bg-leaf font-bold py-3">Send invite</button>
+          <button id="copyBtn" class="glass rounded-2xl px-5 py-3 font-semibold">Copy</button>
+        </div>
+      </div>
+      <h2 class="font-bold text-xl mt-6 mb-3">Your friends</h2>
+      <div id="friends" class="grid gap-2"></div>
+    </section>
+
+    <section id="tab-top" class="absolute inset-0 overflow-y-auto px-5 pt-4 pb-4 hidden">
+      <div id="board" class="grid gap-2"></div>
+    </section>
+  </main>
+
+  <nav id="bottom-nav" class="grid grid-cols-5 gap-1 glass mx-3 px-2 py-1.5 text-[15px] font-medium text-muted" style="margin-bottom: max(env(safe-area-inset-bottom), 10px)">
+    <button data-tab="tap" class="nav-on rounded-3xl py-2.5 flex flex-col items-center gap-1">
+      <svg width="28" height="28" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="12" cy="12" r="3.3" fill="currentColor"/></svg>Tap</button>
+    <button data-tab="upgrade" class="relative rounded-3xl py-2.5 flex flex-col items-center gap-1">
+      <svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3l8 9h-5v9H9v-9H4z" fill="currentColor"/></svg>Upgrade
+      <span id="dot" class="hidden absolute top-1.5 right-4 w-3 h-3 rounded-full bg-amber" style="box-shadow:0 0 10px #f4b942"></span></button>
+    <button data-tab="tasks" class="rounded-3xl py-2.5 flex flex-col items-center gap-1">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg>Tasks</button>
+    <button data-tab="friends" class="rounded-3xl py-2.5 flex flex-col items-center gap-1">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3.6"/><path d="M2.5 20c0-3.7 2.9-6 6.5-6s6.5 2.3 6.5 6z"/><circle cx="17.2" cy="9" r="2.6"/><path d="M16.4 14.1c3.2.1 5.1 2 5.1 5.4h-4.2c0-2-.4-3.8-.9-5.4z"/></svg>Friends</button>
+    <button data-tab="top" class="rounded-3xl py-2.5 flex flex-col items-center gap-1">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M7 3.5h10V9a5 5 0 01-10 0z"/><path d="M7 5H3.2v2a4 4 0 003.9 4M17 5h3.8v2a4 4 0 01-3.9 4" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="14" width="2" height="4"/><rect x="7.5" y="18" width="9" height="2.6" rx="1.2"/></svg>Top</button>
+  </nav>
+</div>
+
+<div id="toast" class="fixed top-5 inset-x-0 mx-auto w-max max-w-[90%] px-4 py-2 rounded-2xl font-semibold hidden z-50"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready(); tg?.expand(); tg?.setHeaderColor?.('#051210'); tg?.setBackgroundColor?.('#051210');
+
+const $ = s => document.querySelector(s);
+const fmt = n => Math.floor(n).toLocaleString('en-US');
+const P = {
+  sprout: '<path d="M12 21v-8"/><path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 15c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
+  medal: '<circle cx="12" cy="14.5" r="5.5"/><path d="M8.5 9.5 6 3h4l2 4 2-4h4l-2.5 6.5"/><path d="m12 12 1 2 2 .3-1.5 1.5.4 2.2-1.9-1-1.9 1 .4-2.2L9 14.300l2-.3z"/>',
+  gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 3 9 9l3 12 3-12z"/>',
+  pointer: '<path d="M9 11V5a2 2 0 0 1 4 0v6"/><path d="M13 10a2 2 0 0 1 4 1v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3a2 2 0 0 1 3-2l1 1"/>',
+  battery: '<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4M10 10v4"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  flame: '<path d="M12 3c1 4 5 5.500 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/>',
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v9H5v-9"/><path d="M7.500 8a2.500 2.500 0 0 1 0-5C11 3 12 8 12 8s1-5 4.500-5a2.500 2.500 0 0 1 0 5"/>',
+  users: '<circle cx="9" cy="8" r="3.500"/><path d="M2.500 20c0-3.600 2.900-6 6.500-6s6.500 2.400 6.500 6"/><path d="M16 4.500a3.500 3.500 0 0 1 0 7M18 14.500c2 .7 3.500 2.400 3.500 5.500"/>',
+  pickaxe: '<path d="M14 10 3 21"/><path d="M5 5c4-3 10-2 14 2-2-1-4-1-6 0z"/><path d="m13 11 3 3M19 7c1 4 0 7-3 9"/>',
+  server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.500h.01M7 16.500h.01"/>',
+  megaphone: '<path d="M3 11v3a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M18 6.500a8 8 0 0 1 0 11"/>',
+  landmark: '<path d="M3 10 12 4l9 6z"/><path d="M5 10v8M9.500 10v8M14.500 10v8M19 10v8M3 21h18"/>',
+  brain: '<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V4a3 3 0 0 0-3 0z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/>',
+  star: '<path d="m12 3 2.800 5.800 6.200.9-4.500 4.400 1.100 6.200L12 17.300 6.400 20.300l1.100-6.200L3 9.700l6.200-.9z"/>',
+  trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H3.500v2a4 4 0 0 0 3.500 4M17 5h3.500v2a4 4 0 0 1-3.500 4M12 14v4M8 20.500h8"/>',
+  check: '<path d="m5 12.500 4.500 4.500L19 7"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1"/>',
+  ticket: '<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4z"/><path d="M13 7v10"/>',
+};
+const ic = (n, size = 24, color = 'currentColor') => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${P[n] || P.star}</svg>`;
+const LEAGUE_ICONS = { Sprout: ['sprout', '#b9ec62'], Bronze: ['medal', '#cd7f32'], Silver: ['medal', '#cfd8dc'], Gold: ['medal', '#f4b942'], Diamond: ['gem', '#7fe7ff'] };
+let S = null, pending = 0, flushing = false, rankInfo = null;
+
+/* ---------- کیوی (SVG) ---------- */
+function kiwi() {
+  let rays = '', seeds = '';
+  for (let i = 0; i < 40; i++) {
+    const a = i * 9 * Math.PI / 180;
+    rays += `<line x1="${100 + Math.cos(a) * 28}" y1="${100 + Math.sin(a) * 28}" x2="${100 + Math.cos(a) * 85}" y2="${100 + Math.sin(a) * 85}"/>`;
+  }
+  for (let i = 0; i < 24; i++) {
+    const d = i * 15, a = d * Math.PI / 180, x = 100 + Math.cos(a) * 42, y = 100 + Math.sin(a) * 42;
+    seeds += `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="2.7" ry="5.2" transform="rotate(${d + 90} ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
+  }
+  return `<svg viewBox="0 0 200 200" class="w-full h-full">
+    <defs>
+      <radialGradient id="flesh" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#c9f07a"/><stop offset=".55" stop-color="#9ad24a"/><stop offset="1" stop-color="#6aa532"/></radialGradient>
+      <radialGradient id="core" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#eaf8b8"/><stop offset="1" stop-color="#d4eb94"/></radialGradient>
+    </defs>
+    <circle cx="100" cy="100" r="100" fill="#7a5230"/><circle cx="100" cy="100" r="98" fill="none" stroke="#9a6b3e" stroke-width="2" opacity=".6"/>
+    <circle cx="100" cy="100" r="91" fill="url(#flesh)"/>
+    <g stroke="#e4f9a8" stroke-width="1.3" opacity=".7" stroke-linecap="round">${rays}</g>
+    <circle cx="100" cy="100" r="27" fill="url(#core)"/>
+    <g fill="#10150d">${seeds}</g>
+    <path d="M32.4 81.9 A70 70 0 0 1 81.9 32.4" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="4.6" stroke-linecap="round"/>
+  </svg>`;
+}
+$('#coin').innerHTML = kiwi();
+$('#kiwiSmall').innerHTML = kiwi();
+
+/* ---------- API ---------- */
+async function api(path, body = {}) {
+  const r = await fetch(path, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Init-Data': tg?.initData || '' },
+    body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { toast(j.error || 'Something went wrong'); throw new Error(j.error); }
+  if (j.tasks) j.tasks.forEach(t => t.ready = Date.now() + (t.wait || 0) * 1000);
+  if (j.coins !== undefined) j.fz = Date.now() + (j.frenzy_sec || 0) * 1000;   // پایان Frenzy در ساعت کلاینت
+  return j;
+}
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 2200);
+}
+const haptic = (t = 'light') => tg?.HapticFeedback?.impactOccurred(t);
+
+/* ---------- Tap ---------- */
+const coin = $('#coin');
+coin.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (!S || S.energy < 1) { tg?.HapticFeedback?.notificationOccurred('error'); return; }
+  const m = S.fz > Date.now() ? S.frenzy_mult : 1, gain = S.power * m;
+  S.coins += gain; S.energy -= 1; pending++;
+  haptic();
+  const r = coin.getBoundingClientRect();
+  const dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+  const dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+  coin.style.transform = `perspective(500px) rotateX(${-dy * 12}deg) rotateY(${dx * 12}deg) scale(.97)`;
+  const f = document.createElement('div');
+  f.className = 'float'; f.textContent = '+' + gain; if (m > 1) f.style.color = '#ffd36b';
+  f.style.left = e.clientX - 12 + 'px'; f.style.top = e.clientY - 30 + 'px';
+  document.body.appendChild(f); setTimeout(() => f.remove(), 900);
+  for (let i = 0; i < 6; i++) {                       // جرقه‌ها
+    const p = document.createElement('i'), a = Math.random() * 6.28, d = 50 + Math.random() * 40;
+    p.className = 'spark'; p.style.left = e.clientX + 'px'; p.style.top = e.clientY + 'px';
+    p.style.setProperty('--dx', Math.cos(a) * d + 'px'); p.style.setProperty('--dy', Math.sin(a) * d + 'px');
+    document.body.appendChild(p); setTimeout(() => p.remove(), 600);
+  }
+  const rp = document.createElement('div'); rp.className = 'ripple'; $('#coinWrap').appendChild(rp); setTimeout(() => rp.remove(), 600);
+  const bal = $('#coins'); bal.classList.remove('bump'); void bal.offsetWidth; bal.classList.add('bump');
+  render();
+});
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+  coin.addEventListener(ev, () => coin.style.transform = ''));
+
+async function flush() {
+  if (!pending || flushing) return;
+  flushing = true; const n = pending; pending = 0;
+  try { S = await api('/api/tap', { taps: n }); S.coins += pending * S.power; S.energy -= pending; }
+  catch { pending += n; }
+  flushing = false; render();
+}
+setInterval(flush, 1000);
+document.addEventListener('visibilitychange', () => document.hidden && flush());
+setInterval(() => {            // شارژ انرژی و درآمد ساعتی به‌صورت لحظه‌ای
+  if (!S) return;
+  S.energy = Math.min(S.max_energy, S.energy + S.regen);
+  S.coins += S.profit_hour / 3600;
+  render();
+}, 1000);
+
+/* ---------- Render ---------- */
+function render() {
+  if (!S) return;
+  $('#coins').textContent = fmt(S.coins);
+  $('#league').textContent = S.league;
+  { const [n, c] = LEAGUE_ICONS[S.league] || LEAGUE_ICONS.Sprout; $('#leagueIcon').innerHTML = ic(n, 24, c); }
+  $('#rank').textContent = `All-time #${S.rank} / ${S.total}`;
+  if (S.league_to) {
+    $('#leagueBar').style.width = Math.min(100, (S.coins - S.league_from) / (S.league_to - S.league_from) * 100) + '%';
+    $('#toNext').textContent = `${fmt(Math.max(0, S.league_to - S.coins))} to ${S.league_next}`;
+  } else { $('#leagueBar').style.width = '100%'; $('#toNext').textContent = 'Top league reached'; }
+  $('#energyTxt').textContent = `${fmt(S.energy)} / ${fmt(S.max_energy)}`;
+  $('#energyBar').style.width = (S.energy / S.max_energy * 100) + '%';
+  $('#hint').classList.toggle('hidden', S.has_upgrade);
+  const fl = Math.max(0, Math.ceil((S.fz - Date.now()) / 1000));
+  document.body.classList.toggle('frenzy', fl > 0);
+  $('#pphChip').textContent = '+' + fmt(S.profit_hour) + '/hr';
+  $('#pw-refill').innerHTML = ic('bolt', 18) + `Full energy · ${S.refill_left}/${S.max_boosts}`; $('#pw-refill').disabled = S.refill_left <= 0;
+  $('#pw-frenzy').innerHTML = ic('flame', 18) + (fl > 0 ? `×${S.frenzy_mult} · ${fl}s` : `Frenzy ×${S.frenzy_mult} · ${S.frenzy_left}/${S.max_boosts}`);
+  $('#pw-frenzy').disabled = fl > 0 || S.frenzy_left <= 0;
+  const cheapest = Math.min(S.tap_cost, S.energy_cost, S.regen_cost, ...S.cards.map(c => c.cost));
+  $('#dot').classList.toggle('hidden', S.coins < cheapest);
+}
+
+const row = 'glass rounded-3xl';
+function renderLists() {
+  const boosts = [
+    ['tap', 'pointer', 'Multitap', `Level ${S.tap_lvl} · ${S.tap_lvl + 1} points per tap`, S.tap_cost],
+    ['energy', 'battery', 'Energy limit', `Level ${S.energy_lvl} · max ${fmt(S.max_energy + 500)}`, S.energy_cost],
+    ['regen', 'bolt', 'Recharge speed', `Level ${S.regen_lvl} · ${S.regen + 1} per second`, S.regen_cost],
+  ];
+  $('#boosts').innerHTML = boosts.map(([k, ik, t, d, c]) => `
+    <button data-boost="${k}" class="${row} flex items-center gap-3 p-4 text-left disabled:opacity-40" ${S.coins < c ? 'disabled' : ''}>
+      <span class="tile">${ic(ik, 26)}</span>
+      <span class="flex-1"><b class="text-lg">${t}</b><br><span class="text-sm text-muted">${d}</span></span>
+      <span class="font-bold text-leaf tabular-nums">${fmt(c)}</span>
+    </button>`).join('');
+  $('#cards').innerHTML = S.cards.map(c => `
+    <button data-card="${c.id}" class="${row} p-3.5 text-left disabled:opacity-40" ${S.coins < c.cost ? 'disabled' : ''}>
+      <div class="tile mb-1">${ic(c.icon, 26)}</div>
+      <div class="font-bold mt-1.5">${c.name}</div>
+      <div class="text-xs text-leaf">+${fmt(c.profit)} / hour</div>
+      <div class="flex justify-between text-xs mt-2 text-muted"><span>Lvl ${c.lvl}</span><b class="text-lime tabular-nums">${fmt(c.cost)}</b></div>
+    </button>`).join('');
+  let nextWait = 0;
+  $('#tasks').innerHTML = S.tasks.map(t => {
+    let act;
+    if (t.done) act = `<span class="text-leaf">${ic('check', 26)}</span>`;
+    else if (t.kind === 'invite') act = t.progress >= t.need ? `<button data-task="${t.id}" class="rounded-xl bg-leaf font-bold px-4 py-2">Claim</button>`
+      : `<span class="chip">${t.progress}/${t.need}</span>`;
+    else if (!t.started) act = `<button data-start="${t.id}" class="rounded-xl bg-leaf font-bold px-4 py-2">Start</button>`;
+    else if (t.ready > Date.now()) { act = `<span class="chip">Wait…</span>`; nextWait = Math.max(nextWait, t.ready - Date.now()); }
+    else act = `<button data-task="${t.id}" class="rounded-xl bg-leaf font-bold px-4 py-2">Claim</button>`;
+    return `<div class="${row} flex items-center gap-3 p-4"><span class="tile">${ic(t.kind === 'invite' ? 'users' : 'link', 24)}</span>
+      <span class="flex-1"><b class="text-lg">${t.title.replace(/</g, '&lt;')}</b><br><span class="text-sm text-leaf">+${fmt(t.reward)} points</span></span>${act}</div>`;
+  }).join('');
+  if (nextWait) setTimeout(() => !$('#tab-tasks').classList.contains('hidden') && renderLists(), nextWait + 150);
+  const d = $('#dailyBtn');
+  d.disabled = !S.daily_ready;
+  d.innerHTML = ic('gift', 22) + (S.daily_ready ? `Daily reward · Day ${S.streak + 1} · +${fmt(S.daily_reward)}` : 'Come back tomorrow for the next reward');
+  $('#refBonus').textContent = fmt(S.ref_bonus); $('#refCount').textContent = S.ref_count;
+}
+
+/* ---------- Events ---------- */
+const act = async (path, body) => { S = await api(path, body); renderLists(); render(); haptic('medium'); };
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'hint') return switchTab('upgrade');
+  if (b.dataset.tab) return switchTab(b.dataset.tab);
+  await flush();
+  if (b.dataset.power) await act('/api/boost', { type: b.dataset.power });
+  if (b.dataset.boost) await act('/api/upgrade', { type: b.dataset.boost });
+  if (b.dataset.card) await act('/api/card', { id: b.dataset.card });
+  if (b.dataset.start) { const t = S.tasks.find(x => x.id == b.dataset.start); await act('/api/task/start', { id: t.id });
+    if (t.url) tg ? tg.openLink(t.url) : window.open(t.url, '_blank'); }
+  if (b.dataset.task) await act('/api/task', { id: b.dataset.task });
+  if (b.id === 'promoBtn') { const c = $('#promoInput').value.trim(); if (c) { await act('/api/promo', { code: c }); $('#promoInput').value = ''; toast('Code redeemed'); } }
+  if (b.id === 'dailyBtn') await act('/api/daily');
+  if (b.id === 'shareBtn') {
+    const url = 'https://t.me/share/url?url=' + encodeURIComponent(S.ref_link) + '&text=' + encodeURIComponent('Tap kiwis with me');
+    tg ? tg.openTelegramLink(url) : window.open(url);
+  }
+  if (b.id === 'copyBtn') { navigator.clipboard?.writeText(S.ref_link); toast('Link copied'); }
+});
+
+async function switchTab(name) {
+  document.querySelectorAll('main > section').forEach(s => s.classList.toggle('hidden', s.id !== 'tab-' + name));
+  document.querySelectorAll('nav button').forEach(n => n.classList.toggle('nav-on', n.dataset.tab === name));
+  if (name !== 'tap') renderLists();
+  if (name === 'friends') {
+    const f = await api('/api/friends');
+    $('#friends').innerHTML = f.length ? f.map(u => `<div class="glass rounded-2xl px-4 py-3 flex justify-between"><span>${u.name.replace(/</g, '&lt;')}</span><b class="tabular-nums text-leaf">${fmt(u.coins)}</b></div>`).join('')
+      : '<p class="text-muted text-center py-4">No friends yet. Share your link to start earning.</p>';
+  }
+  if (name === 'top') {
+    const j = await api('/api/leaderboard');
+    $('#board').innerHTML = j.top.map((u, i) => `
+      <div class="flex items-center justify-between rounded-2xl px-4 py-3 ${u.id === j.my_id ? 'me-row' : 'glass'}" style="${i < 3 && u.id !== j.my_id ? 'box-shadow: inset 3px 0 0 ' + ['#f4b942', '#cfd8dc', '#cd7f32'][i] + ', inset 0 1px 0 rgba(255,255,255,.34), 0 8px 22px rgba(0,0,0,.25)' : ''}">
+        <span class="flex items-center gap-3"><b class="w-8 flex justify-center">${i < 3 ? ic('medal', 24, ['#f4b942', '#cfd8dc', '#cd7f32'][i]) : i + 1}</b>${u.name.replace(/</g, '&lt;')}</span>
+        <b class="tabular-nums">${fmt(u.coins)}</b>
+      </div>`).join('');
+  }
+}
+
+document.querySelectorAll('[data-ic]').forEach(e => e.innerHTML = ic(e.dataset.ic, +e.dataset.size || 24));
+(async () => { S = await api('/api/state'); render(); })();
+</script>
+</body>
+</html>
